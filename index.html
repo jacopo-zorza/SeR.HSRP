@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SeR.HSRP – Documentazione</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #0f172a; color: #f8fafc; }
+    header { padding: 3rem 1.5rem 2rem; text-align: center; background: #1e293b; }
+    header h1 { margin: 0 0 0.5rem; font-size: 2rem; }
+    header p { margin: 0; color: #cbd5f5; }
+    main { max-width: 960px; margin: -1.5rem auto 0; padding: 0 1.5rem 4rem; }
+    .card { background: #111827; border-radius: 10px; padding: 2rem; box-shadow: 0 15px 40px rgba(15, 23, 42, 0.45); }
+    .actions { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem; }
+    a.button { display: inline-block; padding: 0.85rem 1.4rem; border-radius: 6px; text-decoration: none; font-weight: 600; letter-spacing: 0.02em; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    a.button.primary { background: #38bdf8; color: #0f172a; box-shadow: 0 8px 20px rgba(56, 189, 248, 0.35); }
+    a.button.secondary { background: #f8fafc; color: #0f172a; box-shadow: 0 8px 20px rgba(248, 250, 252, 0.2); }
+    a.button:hover { transform: translateY(-2px); }
+    iframe { width: 100%; min-height: 70vh; border: none; border-radius: 6px; background: #0f172a; }
+    footer { margin-top: 3rem; text-align: center; font-size: 0.9rem; color: #94a3b8; }
+    footer a { color: #38bdf8; text-decoration: none; }
+    @media (max-width: 640px) {
+      header { padding: 2.5rem 1.25rem 1.75rem; }
+      iframe { min-height: 60vh; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Documentazione HSRP</h1>
+    <p>Visualizza o scarica la guida completa sul bilanciamento del carico con Hot Standby Router Protocol.</p>
+  </header>
+  <main>
+    <div class="card">
+      <div class="actions">
+        <a class="button primary" href="docs/hsrp_load_balancing_guide.html" download>Scarica la guida (HTML)</a>
+        <a class="button secondary" href="docs/hsrp_load_balancing_guide.html" target="_blank" rel="noopener">Apri in nuova scheda</a>
+      </div>
+      <iframe src="docs/hsrp_load_balancing_guide.html" title="Anteprima guida HSRP"></iframe>
+    </div>
+    <footer>
+      Preparata a partire dall&#39;articolo originale <a href="https://www.computernetworkingnotes.com/ccna-study-guide/hsrp-configuration-and-load-balancing-explained.html" target="_blank" rel="noopener">ComputerNetworkingNotes</a>.
+    </footer>
+  </main>
+</body>
+</html>

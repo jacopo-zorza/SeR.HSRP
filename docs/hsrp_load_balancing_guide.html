@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HSRP: configurazione e bilanciamento del carico</title>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; color: #1f2933; background: #f5f7fa; }
+
+    header { background: #0f4c81; color: #fff; padding: 2rem 1.5rem; }
+
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem; background: #fff; }
+
+    h1, h2, h3, h4 { color: #0f4c81; margin-top: 2.5rem; }
+    h1 { margin-top: 0; }
+
+    p { margin: 1rem 0; }
+
+    ul { margin: 1rem 0 1rem 1.25rem; }
+    li { margin: 0.4rem 0; }
+
+    figure { margin: 2rem 0; text-align: center; }
+    figure img { max-width: 100%; border-radius: 6px; box-shadow: 0 8px 24px rgba(15, 76, 129, 0.18); }
+    figure figcaption { font-size: 0.95rem; margin-top: 0.75rem; color: #52606d; }
+
+    table { border-collapse: collapse; width: 100%; margin: 1.5rem 0; font-size: 0.95rem; }
+    table th, table td { border: 1px solid #d2d6dc; padding: 0.65rem 0.8rem; text-align: left; }
+    table thead { background: #e4eff9; }
+
+    pre { background: #0b1f2e; color: #f5f7fa; padding: 1rem 1.25rem; border-radius: 6px; overflow-x: auto; font-size: 0.95rem; }
+
+    code { background: #f0f4f8; color: #c02942; padding: 0.15rem 0.35rem; border-radius: 4px; }
+
+    .note { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; border-radius: 4px; margin: 1.5rem 0; color: #92400e; }
+
+    .footer { margin-top: 3rem; font-size: 0.9rem; color: #7b8794; }
+
+    @media print {
+      body { background: #fff; }
+      header, main { box-shadow: none; }
+      figure img { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>HSRP: configurazione e bilanciamento del carico</h1>
+    <p>Guida di riferimento basata sull&#39;esercitazione Packet Tracer pubblicata da ComputerNetworkingNotes. I contenuti sono stati riorganizzati e adattati in lingua italiana per favorire la consultazione rapida, con collegamenti diretti alle risorse originali e alle immagini ufficiali.</p>
+  </header>
+  <main>
+    <section>
+      <h2>Obiettivi e panoramica</h2>
+      <p>HSRP (Hot Standby Router Protocol) è un protocollo proprietario Cisco pensato per garantire disponibilità elevata al gateway predefinito. Gli apparati candidati vengono raggruppati e si eleggono automaticamente un router <em>attivo</em> e uno <em>standby</em>; in caso di guasto, la continuità del traffico viene preservata grazie al gateway virtuale condiviso.</p>
+      <p>Con una sola istanza di HSRP, soltanto un router inoltra traffico mentre gli altri restano inattivi. Configurando più istanze, ciascuna associata a una VLAN o sottorete, è possibile distribuire il carico e sfruttare l&#39;intero parco router.</p>
+      <h3>Obiettivi principali</h3>
+      <ul>
+        <li>Progettare una rete ridondata che sfrutti tutte le risorse disponibili grazie al bilanciamento per VLAN.</li>
+        <li>Realizzare una configurazione Packet Tracer completa, replicabile in laboratorio o in ambienti demo.</li>
+        <li>Documentare procedure operative, test e checklist per semplificare il debugging e la manutenzione.</li>
+      </ul>
+      <h3>Passaggi chiave del progetto</h3>
+      <ul>
+        <li>Preparare la topologia e definire indirizzamento, VLAN e protocolli di routing.</li>
+        <li>Configurare HSRP in modalità multiistanza assegnando priorità diverse per VLAN.</li>
+        <li>Verificare failover, comportamento dei timer e tracking delle interfacce critiche.</li>
+        <li>Produrre deliverable aggiornabili (guida HTML scaricabile, Packet Tracer .pkt).</li>
+      </ul>
+      <div class="note">
+        <strong>Nota rapida:</strong> questa guida riprende la topologia e gli esempi della risorsa originale. Tutte le immagini collegate provengono dal sito <a href="https://www.computernetworkingnotes.com" target="_blank" rel="noopener">ComputerNetworkingNotes</a> e restano soggette ai relativi diritti d&#39;autore.
+      </div>
+    </section>
+
+    <section>
+      <h2>Topologia di laboratorio</h2>
+      <p>La rete di esempio prevede tre router gateway (R1, R2, R3) collegati tramite un segmento WAN a un router remoto connesso a un server. Il dominio di accesso ospita client suddivisi in più VLAN.</p>
+      <ul>
+        <li><strong>Domino di accesso:</strong> tre switch Layer 2 con porte trunk verso i router e porte access per gli host VLAN 10, 20, 30.</li>
+        <li><strong>Layer 3 core:</strong> i router R1, R2, R3 condividono le stesse VLAN mediante sottinterfacce router-on-a-stick.</li>
+        <li><strong>Servizi remoti:</strong> un router WAN (RR) e un server 70.0.0.1/8 raggiungibile attraverso link seriali punto-punto.</li>
+        <li><strong>File di partenza:</strong> scarica il laboratorio Packet Tracer “without configuration” per replicare il layout fisico.</li>
+      </ul>
+      <figure>
+        <img src="https://www.computernetworkingnotes.com/wp-content/uploads/ccna-study-guide/images/csg84-01-hsrp-packet-tracer-lab-layout.png" alt="Topologia del laboratorio Packet Tracer" />
+        <figcaption>Topologia logica del laboratorio HSRP proposta dalla risorsa originale.</figcaption>
+      </figure>
+      <p>Per replicare rapidamente l&#39;ambiente Packet Tracer è possibile scaricare il file <a href="https://www.computernetworkingnotes.com/wp-content/uploads/ccna-study-guide/pklab/csg84-packet-tracer-lab-without-any-configuration.pkt" target="_blank" rel="noopener">csg84-packet-tracer-lab-without-any-configuration.pkt</a>.</p>
+    </section>
+
+    <section>
+      <h2>Segmentazione VLAN e prerequisiti</h2>
+      <p>Il dominio di accesso viene suddiviso nelle VLAN 10, 20 e 30. Ogni VLAN è instradata tramite sottinterfacce <code>GigabitEthernet0/0.x</code> sui router, consentendo a ciascun apparato di partecipare a una o più istanze HSRP.</p>
+      <figure>
+        <img src="https://www.computernetworkingnotes.com/wp-content/uploads/ccna-study-guide/images/csg84-02-hsrp-packet-tracer-configuration.png" alt="Configurazione iniziale della topologia" />
+        <figcaption>Schema della configurazione iniziale, con sottinterfacce router-on-a-stick e connessioni trunk verso gli switch di accesso.</figcaption>
+      </figure>
+      <p>I prerequisiti consigliati includono:</p>
+      <ul>
+        <li>Indirizzamento IP coerente su tutte le interfacce di routing.</li>
+        <li>Stesso protocollo dinamico (nel laboratorio viene utilizzato RIP) su tutti i router.</li>
+        <li>Basi VLAN allineate e interfacce trunk configurate sugli switch di accesso/distribuzione.</li>
+        <li>Router-on-a-stick sulle interfacce verso il dominio utente.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Configurazione base degli apparati</h2>
+      <p>Lo snippet seguente mostra come impostare le sottinterfacce VLAN su R1 (la procedura è analoga per R2 e R3, cambiando soltanto gli indirizzi IP e le connessioni WAN). Procedura consigliata:</p>
+      <ul>
+        <li>Creare le tre sottinterfacce <code>.10</code>, <code>.20</code>, <code>.30</code> con <code>encapsulation dot1Q</code> coerente.</li>
+        <li>Attribuire indirizzi IP /8 distinti per VLAN mantenendo gli stessi host-id sui tre router.</li>
+        <li>Abilitare il routing dinamico (RIP nel lab) per propagare le reti locali e WAN.</li>
+        <li>Verificare lo stato <code>up/up</code> delle interfacce con <code>show ip interface brief</code>.</li>
+      </ul>
+      <pre><code>interface GigabitEthernet0/0.10
+ encapsulation dot1Q 10
+ ip address 10.0.0.1 255.0.0.0
+!
+interface GigabitEthernet0/0.20
+ encapsulation dot1Q 20
+ ip address 20.0.0.1 255.0.0.0
+!
+interface GigabitEthernet0/0.30
+ encapsulation dot1Q 30
+ ip address 30.0.0.1 255.0.0.0
+!
+router rip
+ network 10.0.0.0
+ network 20.0.0.0
+ network 30.0.0.0
+ network 40.0.0.0</code></pre>
+  <p>Ricordarsi di attivare le interfacce e di replicare l&#39;indirizzamento lato WAN (Serial0/0/0) verso il router remoto, che nel laboratorio usa le reti 40.0.0.0/8, 50.0.0.0/8 e 60.0.0.0/8.</p>
+    </section>
+
+    <section>
+      <h2>Definizione dei gruppi HSRP</h2>
+      <p>Ogni VLAN condivide un indirizzo virtuale diverso. La tabella sottostante riepiloga le associazioni di gruppo:</p>
+      <table>
+        <thead>
+          <tr>
+
+    <section>
+      <h2>Configurazioni complete di esempio</h2>
+  <p>Utilizza i blocchi seguenti come riferimento per popolare rapidamente il laboratorio. I file .pkt forniti contengono già queste configurazioni, ma mantenerle nella guida facilita troubleshooting e copia/incolla.</p>
+      <h3>Router R2</h3>
+      <pre><code>R2&gt;enable
+            <th>VLAN</th>
+            <th>Router</th>
+            <th>Interfaccia</th>
+            <th>IP fisico</th>
+            <th>Gruppo HSRP</th>
+            <th>IP virtuale</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>10</td>
+            <td>R1</td>
+            <td>G0/0.10</td>
+            <td>10.0.0.1</td>
+            <td>10</td>
+            <td>10.0.0.10</td>
+          </tr>
+          <tr>
+            <td>10</td>
+            <td>R2</td>
+            <td>G0/0.10</td>
+            <td>10.0.0.2</td>
+            <td>10</td>
+            <td>10.0.0.10</td>
+          </tr>
+          <tr>
+            <td>10</td>
+
+      <h3>Router R3</h3>
+      <pre><code>R3&gt;enable
+            <td>R3</td>
+            <td>G0/0.10</td>
+            <td>10.0.0.3</td>
+            <td>10</td>
+            <td>10.0.0.10</td>
+          </tr>
+          <tr>
+            <td>20</td>
+            <td>R1</td>
+            <td>G0/0.20</td>
+            <td>20.0.0.1</td>
+            <td>20</td>
+            <td>20.0.0.10</td>
+          </tr>
+          <tr>
+            <td>20</td>
+            <td>R2</td>
+            <td>G0/0.20</td>
+            <td>20.0.0.2</td>
+            <td>20</td>
+            <td>20.0.0.10</td>
+          </tr>
+          <tr>
+            <td>20</td>
+            <td>R3</td>
+            <td>G0/0.20</td>
+            <td>20.0.0.3</td>
+
+      <h3>Router remoto (RR)</h3>
+      <pre><code>RR&gt;enable
+            <td>20</td>
+            <td>20.0.0.10</td>
+          </tr>
+          <tr>
+            <td>30</td>
+            <td>R1</td>
+            <td>G0/0.30</td>
+            <td>30.0.0.1</td>
+            <td>30</td>
+            <td>30.0.0.10</td>
+          </tr>
+          <tr>
+            <td>30</td>
+            <td>R2</td>
+            <td>G0/0.30</td>
+            <td>30.0.0.2</td>
+            <td>30</td>
+            <td>30.0.0.10</td>
+          </tr>
+          <tr>
+            <td>30</td>
+            <td>R3</td>
+            <td>G0/0.30</td>
+
+      <h3>Switch di accesso</h3>
+      <p>Configurazioni minime per popolare il database VLAN e definire porte access/trunk. Replica la logica su tutti gli switch che interconnettono gli utenti.</p>
+
+      <h4>Switch1</h4>
+      <pre><code>S1&gt;enable
+            <td>30.0.0.3</td>
+            <td>30</td>
+            <td>30.0.0.10</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>Su ciascuna sottinterfaccia si applica il comando di base:</p>
+      <pre><code>standby &lt;gruppo&gt; ip &lt;indirizzo_virtuale&gt;</code></pre>
+    </section>
+
+    <section>
+      <h2>Strategia di bilanciamento del carico</h2>
+      <p>Per fare in modo che tutti i router diventino attivi (ognuno nella propria VLAN) è sufficiente regolare le priorità e abilitare la funzione <code>preempt</code> sull&#39;istanza che deve rimanere primaria anche dopo un riavvio.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>VLAN</th>
+            <th>Router</th>
+            <th>Priorità</th>
+            <th>Preempt</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>10</td>
+
+      <h4>Switch2</h4>
+      <pre><code>S2&gt;enable
+            <td>R1</td>
+            <td>120</td>
+            <td>Sì</td>
+          </tr>
+          <tr>
+            <td>10</td>
+            <td>R2</td>
+            <td>100</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td>10</td>
+            <td>R3</td>
+            <td>110</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td>20</td>
+            <td>R1</td>
+            <td>110</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td>20</td>
+            <td>R2</td>
+            <td>120</td>
+            <td>Sì</td>
+          </tr>
+          <tr>
+            <td>20</td>
+            <td>R3</td>
+
+      <h4>Switch3</h4>
+      <pre><code>S3&gt;enable
+            <td>100</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td>30</td>
+            <td>R1</td>
+            <td>100</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td>30</td>
+            <td>R2</td>
+            <td>110</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td>30</td>
+            <td>R3</td>
+            <td>120</td>
+            <td>Sì</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>Esempio di configurazione sul router R1:</p>
+      <pre><code>interface GigabitEthernet0/0.10
+
+      <h3>Server e indirizzi statici</h3>
+      <p>Il server remoto utilizza l&#39;indirizzo <code>70.0.0.1/8</code> con gateway <code>70.0.0.254</code> (o l&#39;indirizzo del router remoto definito nel laboratorio). Assicurati che:</p>
+      <ul>
+        <li>I default gateway dei server e dei client siano coerenti con gli indirizzi virtuali HSRP.</li>
+        <li>Il routing tra domini (RIP o protocollo equivalente) annunci le reti 10/8, 20/8, 30/8 e le reti WAN 40/8, 50/8, 60/8, 70/8.</li>
+        <li>Eventuali filtri ACL o policy QoS non blocchino i pacchetti VRRP/HSRP (multicast 224.0.0.2 per HSRP v1).</li>
+      </ul>
+    </section>
+ standby 10 ip 10.0.0.10
+ standby 10 priority 120
+ standby 10 preempt
+!
+interface GigabitEthernet0/0.20
+ standby 20 ip 20.0.0.10
+ standby 20 priority 110
+!
+interface GigabitEthernet0/0.30
+ standby 30 ip 30.0.0.10</code></pre>
+      <p>Replica la logica sugli altri router, impostando la priorità più alta (e il comando <code>preempt</code>) su R2 per VLAN 20 e su R3 per VLAN 30.</p>
+    </section>
+
+    <section>
+      <h2>Configurazione IP dei client</h2>
+      <p>Ogni host deve usare l&#39;indirizzo virtuale HSRP come gateway predefinito. Il laboratorio propone, ad esempio, gli indirizzi <code>10.0.0.100/8</code> per la VLAN 10, <code>20.0.0.100/8</code> per la VLAN 20 e <code>30.0.0.100/8</code> per la VLAN 30.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Host</th>
+            <th>VLAN</th>
+            <th>Indirizzo IP</th>
+            <th>Mask</th>
+            <th>Gateway virtuale</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>V10PC1</td>
+            <td>10</td>
+            <td>10.0.0.100</td>
+            <td>255.0.0.0</td>
+            <td>10.0.0.10</td>
+          </tr>
+          <tr>
+            <td>V10PC2</td>
+            <td>10</td>
+            <td>10.0.0.101</td>
+            <td>255.0.0.0</td>
+            <td>10.0.0.10</td>
+          </tr>
+          <tr>
+            <td>V10PC3</td>
+            <td>10</td>
+            <td>10.0.0.102</td>
+            <td>255.0.0.0</td>
+            <td>10.0.0.10</td>
+          </tr>
+          <tr>
+            <td>V20PC1</td>
+            <td>20</td>
+            <td>20.0.0.100</td>
+            <td>255.0.0.0</td>
+            <td>20.0.0.10</td>
+          </tr>
+          <tr>
+            <td>V20PC2</td>
+            <td>20</td>
+            <td>20.0.0.101</td>
+            <td>255.0.0.0</td>
+            <td>20.0.0.10</td>
+          </tr>
+          <tr>
+            <td>V20PC3</td>
+            <td>20</td>
+            <td>20.0.0.102</td>
+            <td>255.0.0.0</td>
+            <td>20.0.0.10</td>
+          </tr>
+          <tr>
+            <td>V30PC1</td>
+            <td>30</td>
+            <td>30.0.0.100</td>
+            <td>255.0.0.0</td>
+            <td>30.0.0.10</td>
+          </tr>
+          <tr>
+            <td>V30PC2</td>
+            <td>30</td>
+            <td>30.0.0.101</td>
+            <td>255.0.0.0</td>
+            <td>30.0.0.10</td>
+          </tr>
+          <tr>
+            <td>V30PC3</td>
+            <td>30</td>
+            <td>30.0.0.102</td>
+            <td>255.0.0.0</td>
+            <td>30.0.0.10</td>
+          </tr>
+        </tbody>
+      </table>
+      <figure>
+        <img src="https://www.computernetworkingnotes.com/wp-content/uploads/ccna-study-guide/images/csg84-03-ip-configuration.png" alt="Esempio di configurazione IP su PC" />
+        <figcaption>Ogni PC deve puntare al gateway virtuale (10.0.0.10, 20.0.0.10, 30.0.0.10) in base alla VLAN di appartenenza.</figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <h2>Stati, timer e tracking HSRP</h2>
+      <p>HSRP applica una state machine formata da <strong>Initial</strong>, <strong>Learn</strong>, <strong>Listen</strong>, <strong>Speak</strong>, <strong>Standby</strong> e <strong>Active</strong>. Solo l&#39;interfaccia in stato <em>Active</em> risponde al virtual MAC; lo stato <em>Standby</em> è pronto a subentrare se scade il timer di hold o se riceve notifiche di fault.</p>
+      <p>I timer di default sono <code>hello 3s</code> e <code>hold 10s</code>. In ambienti più esigenti è possibile ridurre la convergenza:</p>
+      <pre><code>standby 10 timers msec 200 750</code></pre>
+      <p>La regolazione deve essere coerente su tutti i membri del gruppo per evitare flapping. In alternativa, utilizza <code>standby 10 timers 1 3</code> se preferisci valori in secondi.</p>
+      <p>Per gestire guasti specifici di un&#39;interfaccia o di un tracciamento IP route, aggiungi il tracking:</p>
+      <pre><code>standby 10 track GigabitEthernet0/1 20
+standby 20 track Serial0/0/0 35</code></pre>
+      <p>La sottrazione del valore indicato (20, 35 nell&#39;esempio) alla priorità attuale accelera il passaggio del ruolo attivo verso un router integro, mantenendo o ripristinando il bilanciamento sul resto della rete.</p>
+    </section>
+
+    <section>
+      <h2>Verifica e test</h2>
+      <p>Sequenza di test consigliata:</p>
+      <ol>
+        <li>Esecuzione di <code>ping 70.0.0.1</code> da un host per VLAN per verificare l&#39;upstream routing.</li>
+        <li>Uso di <code>tracert</code> (o <code>trace</code> in Packet Tracer) per identificare il router attivo per ogni VLAN.</li>
+        <li>Spegnimento del link verso il router attivo (shutdown porta switch o Serial) e ripetizione di ping/tracert per validare il failover.</li>
+        <li>Ripristino del link e verifica che la funzionalità <code>preempt</code> riporti il ruolo attivo sul router designato.</li>
+        <li>Controllo dei timer ridotti (se configurati) con <code>show standby</code> per confermare la convergenza attesa.</li>
+      </ol>
+      <figure>
+        <img src="https://www.computernetworkingnotes.com/wp-content/uploads/ccna-study-guide/images/csg84-05-testing-default.png" alt="Ping e tracert con gateway attivo" />
+        <figcaption>Verifica iniziale del percorso verso il server remoto.</figcaption>
+      </figure>
+      <figure>
+        <img src="https://www.computernetworkingnotes.com/wp-content/uploads/ccna-study-guide/images/csg84-06-main-router-failure.png" alt="Guasto del router principale" />
+        <figcaption>Spegnimento del collegamento per simulare il guasto del router attivo.</figcaption>
+      </figure>
+      <figure>
+        <img src="https://www.computernetworkingnotes.com/wp-content/uploads/ccna-study-guide/images/csg84-07-testing-stanby-router.png" alt="Standby router in azione" />
+        <figcaption>Il router standby subentra mantenendo la connettività.</figcaption>
+      </figure>
+      <figure>
+        <img src="https://www.computernetworkingnotes.com/wp-content/uploads/ccna-study-guide/images/csg84-08-main-router-back.png" alt="Ripristino del router principale" />
+        <figcaption>Una volta ripristinato il link, l&#39;ordine di priorità garantisce il ritorno al router primario.</figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <h2>Monitoraggio e troubleshooting</h2>
+      <p>Comandi utili lato router:</p>
+      <ul>
+        <li><code>show standby brief</code>: riepiloga lo stato delle interfacce HSRP.</li>
+        <li><code>show standby</code>: dettaglio completo di timer, priorità e stato.</li>
+        <li><code>debug standby</code>: consigliato solo in fase di laboratorio per tracciare gli eventi HSRP in tempo reale.</li>
+      </ul>
+      <p>Strategia di analisi rapida:</p>
+      <ul>
+        <li>Verificare gruppi, virtual MAC e timer con <code>show standby</code> su tutti i router partecipanti.</li>
+        <li>Ispezionare la tabella ARP dei client per assicurarsi che risolva il MAC virtuale HSRP.</li>
+        <li>Monitorare i log con <code>debug standby events</code> quando si applicano modifiche critiche alle priorità o al tracking.</li>
+        <li>Usare <code>show ip route</code> per confermare che le reti remote siano effettivamente raggiungibili dopo il failover.</li>
+      </ul>
+      <figure>
+        <img src="https://www.computernetworkingnotes.com/wp-content/uploads/ccna-study-guide/images/csg84-09-show-standby-brief.png" alt="Output show standby brief" />
+        <figcaption>Output del comando <code>show standby brief</code> sui router di laboratorio.</figcaption>
+      </figure>
+      <p>Checklist rapida:</p>
+      <ul>
+        <li>Conferma che i client puntino all&#39;indirizzo virtuale HSRP, non all&#39;IP fisico del router.</li>
+        <li>Verifica che tutti i membri di un gruppo usino lo stesso ID e lo stesso indirizzo virtuale.</li>
+        <li>Controlla che le priorità riflettano il comportamento di failover desiderato.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Risorse e download</h2>
+      <p>Packet Tracer labs correlati:</p>
+      <ul>
+        <li><a href="https://www.computernetworkingnotes.com/wp-content/uploads/ccna-study-guide/pklab/csg84-lab-with-all-initial-configuration.pkt" target="_blank" rel="noopener">Topologia con configurazione iniziale pronta</a></li>
+        <li><a href="https://www.computernetworkingnotes.com/wp-content/uploads/ccna-study-guide/pklab/csg84-lab-with-hsrp-load-balancing-configuraiton.pkt" target="_blank" rel="noopener">Topologia completa con HSRP e bilanciamento del carico configurati</a></li>
+      </ul>
+      <p>Approfondimenti consigliati:</p>
+      <ul>
+        <li><a href="https://www.computernetworkingnotes.com/ccna-study-guide/hot-standby-router-protocol-explained.html" target="_blank" rel="noopener">Concetti fondamentali di HSRP</a></li>
+        <li><a href="https://www.computernetworkingnotes.com/ccna-study-guide/vlan-configuration-commands-step-by-step-explained.html" target="_blank" rel="noopener">Ripasso VLAN e DTP</a></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Checklist finale</h2>
+      <ul>
+        <li>Conferma che ogni VLAN abbia un router attivo diverso verificando il campo <em>Active router</em> con <code>show standby brief</code>.</li>
+        <li>Valida i timer impostati (default o custom) e assicurati che siano uguali tra i membri dello stesso gruppo.</li>
+        <li>Documenta nel changelog di progetto eventuali personalizzazioni rispetto alla guida originale.</li>
+        <li>Esegui uno snapshot o esporta il file .pkt finale come deliverable insieme alla presente guida HTML.</li>
+      </ul>
+    </section>
+
+    <p class="footer">Ultimo aggiornamento: novembre 2025. Fonte primaria: <a href="https://www.computernetworkingnotes.com/ccna-study-guide/hsrp-configuration-and-load-balancing-explained.html" target="_blank" rel="noopener">HSRP Configuration and Load Balancing Explained</a> di ComputerNetworkingNotes.</p>
+  </main>
+</body>
+</html>
